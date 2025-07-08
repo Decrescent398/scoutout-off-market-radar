@@ -1,15 +1,21 @@
 import reflex as rx
 from rxconfig import config
+import check_validity
 
 class State(rx.State):
     
     address: str = ""
 
-    @rx.event
     def set_address(self, user_address: str):
         self.address = user_address
 
-#TODO: Error handling for blank pages and properties not found
+    def get_address(self):
+
+        if check_validity.check_home_for_sale(self.address) is True:
+            return rx.redirect("/value")
+        else:
+            return rx.redirect("/not-found")
+
 
 def index() -> rx.Component:
     return rx.container(
@@ -28,6 +34,7 @@ def index() -> rx.Component:
                 size="5",
             ),
 
+
             rx.hstack(
 
                 rx.input(
@@ -42,7 +49,7 @@ def index() -> rx.Component:
                 
                 rx.button(
                     "Find price!",
-                    on_click=rx.redirect("/value"),
+                    on_click=State.get_address,
                     background_color=rx.color("accent", 10),
                     box_shadow="rgba(0, 0, 0, 0.15) 0px 2px 8px",
                 ),
@@ -63,34 +70,76 @@ def property_values():
 
         rx.color_mode.button(position="bottom-right"),
 
+            rx.vstack(
+
+                rx.heading(
+
+                    "$1,003,234.45",
+                    size="9"
+
+                ),
+
+                rx.text(
+
+                    f"{State.address}",
+                    size="5"
+
+                ),
+
+                 rx.button(
+
+                    "Back to home", 
+                    on_click=rx.redirect("/"),
+                    color_scheme="grass"
+
+                ),
+
+                spacing="5",
+                justify="center",
+                align_items="center",
+                min_height="85vh"
+
+            )
+
+        )
+        
+def not_found():
+    return rx.container(
+
+        rx.color_mode.button(position="bottom-right"),
+
         rx.vstack(
 
             rx.heading(
-
-                "$1,003,234.45",
-                size="9"
-
+                
+                "Sorry, we could not find that property",
+                align="center",
+                size = "9"
+                    
             ),
 
-            rx.text(
 
-                f"{State.address}",
-                size="5"
+            rx.button(
+
+                "Back to home",
+                on_click=rx.redirect("/"),
+                border="2px",
+                color_scheme="grass"
 
             ),
 
             spacing="5",
+            align="center",
             justify="center",
-            align_items="center",
             min_height="85vh"
 
         )
 
     )
 
-
 app = rx.App()
 
 app.add_page(index)
 
 app.add_page(property_values, route="/value")
+app.add_page(not_found, route="/not-found")

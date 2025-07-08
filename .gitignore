@@ -1,11 +1,9 @@
-assets/external/
 .states
 *.py[cod]
-*.db
 __pycache__/
 .web
-.vscode/
+assets/external/
+*.db
 data/
-src/__pycache__
 .env
-venv/
+.vscode/
