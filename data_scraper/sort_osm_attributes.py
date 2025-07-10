@@ -13,40 +13,52 @@ OSM_PATH = DOWNLOAD_PATH / pathlib.Path(f"us-latest-{datetime.date.today()}.osm.
 def sort_and_write_data():
 
     file_processer = osmium.FileProcessor(OSM_PATH).with_filter(osmium.filter.KeyFilter('building'))
-    references = osmium.IdTracker()
 
-    with osmium.SimpleWriter(OPL_OUTPUT/pathlib.Path('houses.opl'), overwrite=True) as writer:
+    with open(OPL_OUTPUT/pathlib.Path('houses.csv').as_posix(), 'w', newline='') as file:
+
+        writer = csv.writer(file, delimiter="|")
+        #Filter's out a lot of houses, because most have incomplete addresses and cannot be crossreferenced for other data - I would prefer Google Places API (co-ordinate accuracy + addresses) but it's paid
+        #https://taginfo.openstreetmap.org/keys/building#values - 79.50% of all buildings are of unspecified type which is inaccurate af
+        #VERY BIG TODO: Refine this by moneying in API
+
+        counties = []
+
         for obj in file_processer:
-            if obj.tags['building'] == 'house':
-                writer.add(obj)
-                references.add_references(obj)
+            if obj.tags['building'] in ['house', 'residential', 'apartments', 'detached', 'semidetached_house', 'terrace']:
+                address = ''
 
-    references.complete_backward_references(OSM_PATH, relation_depth=10)
+                street = obj.tags.get("addr:street")
+                suburb = obj.tags.get("addr:suburb")
+                place = obj.tags.get("addr:place")
+                county = obj.tags.get("addr:county")
+                city = obj.tags.get("addr:city")
+                state = obj.tags.get("addr:state")
+                parts = [street, suburb, place, county, city, state]
 
-    def get_query():
-        with open(OPL_OUTPUT/pathlib.Path('houses.opl')) as infile:
-            reader = csv.reader(infile, delimiter=' ')
-            iterator = list(reader)
-            for house_data_point in reader:
-                if house_data_point[0].startswith('n'):
-                    point = Point(house_data_point[-2], house_data_point[-1])
-                    return point.format('dms')
-                elif house_data_point[0].startswith('w'):
-                    for node in house_data_point[-1].split(','):
-                        coordinate_list = [(line[-2], line[-1]) for line in iterator if line.startswith(node)]
-                        multi_point = MultiPoint(coordinate_list)
-                        return multi_point.centorid
-                elif house_data_point[0].startswith('r'):
-                    way_centroids = []
-                    for way in house_data_point[-1].split(','):
-                        nodes = [line[-1].split(',') for line in iterator if line.startswith(way)]
-                        for node in nodes:
-                            coordinate_list = [(line[-2], line[-1]) for line in iterator if line.startswith(node)]
-                            node_multi_point = MultiPoint(coordinate_list)
-                            way_centroids.append(node_multi_point.centroid)
-                    way_multipoint = MultiPoint(way_centroids)
-                    return way_multipoint.centroid
-    
-    get_query()
+                address = address + ", ".join(part for part in parts if part)
+
+                if county not in counties:
+                    counties.append(county)
+                    
+                if 'addr:flats' not in obj.tags:
+                    if obj.tags.get("addr:housenumber"):
+                        try:
+                            writer.writerow([f"{obj.tags.get("addr:housenumber")} {address}", f"{obj.location.lat, obj.location.lon}"])
+                        except AttributeError:
+                            pass
+
+                else: #https://wiki.openstreetmap.org/wiki/Key:addr:flats
+                    ranges = obj.tags["addr:flats"].split(";")
+                    for flat_range in ranges:
+                        if "-" in flat_range:
+                            try:
+                                writer.writerows([[f"{flat}, {address}", f"{obj.location.lat, obj.location.lon}"] for flat in range(int(flat_range[0]), int(flat_range[-1])+1)])
+                            except (AttributeError, ValueError):
+                                pass
+                        else:
+                            try:
+                                writer.writerow([f"{flat_range}, {address}", f"{obj.location.lat, obj.location.lon}"])
+                            except AttributeError:
+                                pass
 
 sort_and_write_data()

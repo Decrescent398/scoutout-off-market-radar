@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+#Has a rate limit - used temporarily
 GOOGLE_API_KEY = os.getenv('API_KEY')
 PSE_KEY = os.getenv('PSE_KEY')
 
